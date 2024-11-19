@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect } from 'react';
-import { View, StyleSheet, Text, FlatList, TouchableOpacity, TextInput, Modal, Button } from 'react-native';
+import { View, StyleSheet, Text, FlatList, TouchableOpacity, TextInput, Modal, Button, Image } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { PlaceContext } from '../controller/taskController';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -25,19 +25,20 @@ LocaleConfig.defaultLocale = 'es';
 
 const CalendarScreen = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const { tasks, addTask } = useContext(PlaceContext);
+  const { tasks, addTask, loadTasksForSelectedDate } = useContext(PlaceContext);
   const [markedDates, setMarkedDates] = useState({});
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
-    date: new Date(),
+    date: selectedDate,
     time: new Date(),
-    imageUri: null,
+    imageUri: '',
   });
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-
+  const [tasksForSelectedDate, setTasksForSelectedDate] = useState([]);
+console.log(tasks);
   useEffect(() => {
     const marks = {};
     tasks.forEach((task) => {
@@ -46,11 +47,20 @@ const CalendarScreen = () => {
     setMarkedDates(marks);
   }, [tasks]);
 
+  useEffect(() => {
+    loadTasksForSelectedDate({ date: selectedDate }).then(setTasksForSelectedDate);
+  }, [selectedDate]);
+
   const handleDayPress = (day) => {
     setSelectedDate(day.dateString);
+    loadTasksForSelectedDate({ date: day.dateString }).then(setTasksForSelectedDate);
   };
 
   const openModal = () => {
+    setNewTask({
+      ...newTask,
+      date: selectedDate, // Actualiza la fecha al día seleccionado
+    });
     setIsModalVisible(true);
   };
 
@@ -59,8 +69,13 @@ const CalendarScreen = () => {
   };
 
   const handleAddTask = () => {
-    addTask(newTask);
-    setNewTask({ title: '', description: '', date: new Date(), time: new Date(), imageUri: null });
+    const taskWithSelectedDate = { 
+      ...newTask, 
+      date: selectedDate, 
+      time: newTask.time.toISOString() // Almacenar la hora en formato ISO
+    };
+    addTask(taskWithSelectedDate);
+    setNewTask({ title: '', description: '', date: selectedDate, time: new Date(), imageUri: '' });
     closeModal();
   };
 
@@ -73,7 +88,7 @@ const CalendarScreen = () => {
     });
 
     if (!result.canceled) {
-      setNewTask({ ...newTask, imageUri: result.uri });
+      setNewTask({ ...newTask, imageUri: result.assets[0].uri });
     }
   };
 
@@ -94,13 +109,8 @@ const CalendarScreen = () => {
   return (
     <View style={styles.container}>
       <Calendar
-        current={selectedDate}
         onDayPress={handleDayPress}
-        markedDates={{
-          ...markedDates,
-          [selectedDate]: { selected: true, selectedColor: '#007BFF' },
-        }}
-        monthFormat={'MMMM yyyy'}
+        markedDates={markedDates}
         onMonthChange={(month) => console.log('Mes cambiado:', month)}
         enableSwipeMonths={true}
         firstDay={1}
@@ -117,60 +127,61 @@ const CalendarScreen = () => {
         }}
       />
 
-      <View style={styles.remindersContainer}>
-        <Text style={styles.remindersTitle}>Recordatorios</Text>
-        <FlatList
-          data={tasks.filter((task) => task.date === selectedDate)}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.reminderItem}>
-              <MaterialIcons name="circle" size={10} color="#1f292d" style={styles.bulletIcon} />
-              <View style={styles.reminderContent}>
-                <Text style={styles.reminderText}>{item.title}</Text>
-                <Text style={styles.reminderTime}>{item.time}</Text>
-              </View>
-            </View>
-          )}
-        />
-      </View>
+      <Text style={styles.remindersTitle}>Recordatorios</Text>
+      <FlatList
+        data={tasks.filter(task => task.date === selectedDate)}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item }) => (
+          <View style={styles.reminderItem}>
+            <Text style={styles.reminderText}>{item.title}</Text>
+            <Text style={styles.reminderTime}>
+              {new Date(item.created_time).toLocaleTimeString('es-ES', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </Text>
+            {item.imageUri && (
+              <Image source={{ uri: item.imageUri }} style={styles.reminderImage} />
+            )}
+          </View>
+        )}
+      />
 
       <TouchableOpacity style={styles.addButton} onPress={openModal}>
-        <Ionicons name="add" size={36} color="#f1f3f5" />
+        <Ionicons name="add" size={30} color="#fff" />
       </TouchableOpacity>
 
-      <Modal
-        visible={isModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={closeModal}
-      >
+      <Modal visible={isModalVisible} transparent={true} animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Añadir Tarea</Text>
             <TextInput
               style={styles.input}
-              placeholder="Añadir título"
+              placeholder="Título"
               value={newTask.title}
               onChangeText={(text) => setNewTask({ ...newTask, title: text })}
             />
+            <TextInput
+              style={styles.input}
+              placeholder="Descripción"
+              value={newTask.description}
+              onChangeText={(text) => setNewTask({ ...newTask, description: text })}
+            />
             <View style={styles.dateTimeContainer}>
               <TouchableOpacity style={styles.dateButton} onPress={() => setShowDatePicker(true)}>
-                <Ionicons name="calendar-outline" size={24} color="#a3b1c6" />
-                <Text style={styles.dateTimeText}>
-                  {newTask.date.toLocaleDateString('es-ES')}
-                </Text>
+                <MaterialIcons name="date-range" size={24} color="black" />
+                <Text style={styles.dateTimeText}>{newTask.date}</Text>
               </TouchableOpacity>
               {showDatePicker && (
                 <DateTimePicker
-                  value={newTask.date}
+                  value={new Date(newTask.date)}
                   mode="date"
                   display="default"
                   onChange={onDateChange}
                 />
               )}
-
               <TouchableOpacity style={styles.timeButton} onPress={() => setShowTimePicker(true)}>
-                <Ionicons name="time-outline" size={24} color="#a3b1c6" />
+                <MaterialIcons name="access-time" size={24} color="black" />
                 <Text style={styles.dateTimeText}>
                   {newTask.time.toLocaleTimeString('es-ES', {
                     hour: '2-digit',
@@ -188,19 +199,16 @@ const CalendarScreen = () => {
                 />
               )}
             </View>
-            <TextInput
-              style={styles.input}
-              placeholder="Añadir descripción"
-              value={newTask.description}
-              onChangeText={(text) => setNewTask({ ...newTask, description: text })}
-            />
             <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
-              <Ionicons name="camera-outline" size={24} color="#a3b1c6" />
-              <Text style={styles.imagePickerText} >Adjuntar imagen</Text>
+              <Ionicons name="image" size={24} color="black" />
+              <Text style={styles.imagePickerText}>Adjuntar imagen</Text>
             </TouchableOpacity>
-            <Button title="Guardar" onPress={handleAddTask} color="#28a745" />
+            {newTask.imageUri && (
+              <Image source={{ uri: newTask.imageUri }} style={styles.reminderImage} />
+            )}
+            <Button title="Añadir Tarea" onPress={handleAddTask} />
             <TouchableOpacity style={styles.closeButton} onPress={closeModal}>
-              <Ionicons name="close" size={24} color="#a3b1c6" />
+              <Ionicons name="close" size={24} color="black" />
             </TouchableOpacity>
           </View>
         </View>
@@ -217,7 +225,6 @@ const styles = StyleSheet.create({
   remindersContainer: {
     padding: 16,
     flex: 1,
-    
   },
   remindersTitle: {
     fontSize: 18,
@@ -242,6 +249,11 @@ const styles = StyleSheet.create({
   reminderTime: {
     fontSize: 14,
     color: '#a3b1c6',
+  },
+  reminderImage: {
+    width: 50,
+    height: 50,
+    marginTop: 5,
   },
   addButton: {
     position: 'absolute',
@@ -286,14 +298,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     width: '100%',
     marginBottom: 10,
-    
   },
   dateButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: 10,
-    
   },
   timeButton: {
     flex: 1,
@@ -313,7 +323,7 @@ const styles = StyleSheet.create({
   imagePickerText: {
     marginLeft: 10,
     fontSize: 16,
-    color:"#1f292d",
+    color: "#1f292d",
   },
   closeButton: {
     position: 'absolute',

@@ -116,6 +116,7 @@ const TasksScreen = () => {
           <Text>Descripcion{item.description}</Text>
           <Text>Premium: {item.status != 1 ? "No"  : "Si"}</Text>
           <Text>Hora: {item.time}</Text>
+          <Text>Fecha: {item.created_at}</Text>
           {item.imageUri && (
             <View style={styles.imageContainer}>
               <Image source={{ uri: item.imageUri }} style={styles.image} />
