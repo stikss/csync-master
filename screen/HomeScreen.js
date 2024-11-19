@@ -29,6 +29,7 @@ const HomeScreen = () => {
               <Text style={styles.taskDescription}>{item.description}</Text>
               <Text style={styles.taskStatus}>
                 Estado: {item.status !== 1 ? "No Premium" : "Premium"}
+                
               </Text>
               <Text style={styles.taskTime}>Hora: {item.time}</Text>
               <Text style={styles.taskTime}>Fecha: {item.created_at}</Text>
